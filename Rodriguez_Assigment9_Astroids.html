@@ -174,9 +174,11 @@ Last modified: 4/10/24
 					gl_Position = ApplyPosition(cameraSpace);
 				}
 				else
+				{
 					gl_Position = a_position;
 					
-				gl_Position = ApplyPosition(MoveCamera(PositionObject(RotateObject(a_position))));
+				//gl_Position = ApplyPosition(MoveCamera(PositionObject(RotateObject(a_position))));
+				}
 			}		
 		</SCRIPT>
 		<script id="2dFragmentShader" type="notjs">
@@ -218,9 +220,7 @@ Last modified: 4/10/24
 				gl.compileShader(shader);
 				var success = gl.getShaderParameter(shader,gl.COMPILE_STATUS);
 				if(success)
-				{
 					return shader;
-				}
 				console.error(gl.getShaderInfoLog(shader));
 				gl.deleteShader(shader);
 			}
@@ -233,9 +233,7 @@ Last modified: 4/10/24
 				gl.linkProgram(program);
 				var succsess = gl.getProgramParameter(program,gl.LINK_STATUS);
 				if(succsess)
-				{
 					return program;
-				}
 				console.error(gl.getProgramInfoLog(program));
 				gl.deleteProgram(program);
 			}
@@ -397,16 +395,20 @@ Last modified: 4/10/24
 					
 				gl.bufferData(gl.ARRAY_BUFFER, this.vertices, gl.STATIC_DRAW);
 			}
-			
 			Update()
 			{
+				this.velocity = [0,0,0];
+				this.angVelocity = [0,0,0];
+				
 				if("A" in m.Keys && m.Keys["A"])
 				{
-					this.rot[1] -=.01;
+					this.angVelocity[1] -=.01;
+					//this.rot[1] -=.01;
 				}
 				if("D" in m.Keys && m.Keys["D"])
 				{
-					this.rot[1] +=.01;
+					this.angVelocity[1] +=.01;
+					//this.rot[1] +=.01;
 				}
 				this.velocity = [0,0,0];
 				if("W" in m.Keys && m.Keys["W"])
@@ -454,11 +456,10 @@ Last modified: 4/10/24
 				gl.uniform3fv(camLoc, new Float32Array(this.loc));
 				
 				var worldLoc = gl.getUniformLocation(program, 'cameraRotation');
-				gl.uniform3fv(worldLoc, new Float32Array(this.loc));
+				gl.uniform3fv(worldLoc, new Float32Array(this.rot));
 				
 				
-				tempLoc = gl.getUniformLocation(program, 'overlay');
-				gl.uniform1f(tempLoc, 0.0);
+
 				
 				gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
 		
@@ -488,6 +489,9 @@ Last modified: 4/10/24
 				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibuffer);
     
 				gl.drawArrays(primitiveType, offset, count);
+				tempLoc = gl.getUniformLocation(program, 'overlay');
+				gl.uniform1f(tempLoc, 0.0);
+
 			}
 		}
 		
@@ -586,8 +590,8 @@ Last modified: 4/10/24
 			Update()
 			{
 				this.angVelocity[0]=.01
-				this.velocity[0] =.0001;
-				this.velocity[1] =.0002;
+				//this.velocity[0] =.0001;
+				//this.velocity[1] =.0002;
 
 				this.Move();
 			}
@@ -641,7 +645,7 @@ Last modified: 4/10/24
 			constructor()
 			{
 				super();
-				this.velocity = [0.03,0.03,0];
+				this.velocity = [0.03,0.03,0.3];
 				this.isTrigger = true;
 				this.primitiveType = gl.TRIANGLES;
 				
@@ -666,10 +670,10 @@ Last modified: 4/10/24
 			
 			Update()
 			{
-				for (var i = 0; i < 3; i++) 
+				/*for (var i = 0; i < 3; i++) 
 				{
 					this.loc[i] += this.velocity[i];
-				}
+				}*/
 				this.Move();
 			}
 			
