@@ -18,17 +18,17 @@ Last modified: 4/10/24
 			varying vec3 fragColor;		
 
 			uniform vec3 transform;
-			uniform vec3 u_rotation;
+			uniform vec3 rotation;		
+			uniform vec3 scale;
 			
-			// new uniforms
+			//This was added for camera move
 			uniform vec3 cameraLoc;
-			uniform vec3 cameraRotation;
-			
+			uniform vec3 camerarotation;
 			uniform float n;
 			uniform float f;
 			uniform float r;
 			uniform float t;
-			
+		
 			vec4 PositionObject(vec4 pos)
 			{
 				mat4 translateM = mat4(1.0,0.0,0.0,0.0,
@@ -37,17 +37,34 @@ Last modified: 4/10/24
 							transform.x,transform.y,transform.z,1.0);
 				return translateM*pos;	
 			}
+
+			vec4 ScaleObject (vec4 pos)
+			{
+				if (length(scale) != 0.0)
+				{
+					mat4 scaleM = mat4(
+						scale.x, 0.0, 0.0, 0.0,
+						0.0, scale.y, 0.0, 0.0,
+						0.0, 0.0, scale.z, 0.0,
+						0.0, 0.0, 0.0, 1.0
+					);	
+					return scaleM*pos;
+				}
+				else 
+				{
+					return pos;
+				}
+			}
 			
 			vec4 RotateObject (vec4 pos)
 			{
-				vec3 c = cos(u_rotation);
-				vec3 s = sin(u_rotation);
-				
-				mat4 rotateX = mat4(
-					1.0, 0.0, 0.0, 0.0,
-					0.0, c.x, s.x, 0.0,
-					0.0, -1.0 *s.x, c.x, 0.0,
-					0.0, 0.0, 0.0, 1.0
+				vec3 c = cos(rotation);
+				vec3 s = sin(rotation);
+				mat4 rotateX = mat4 (
+					1.0,	0.0,	0.0,	0.0,
+					0.0,	c.x,	s.x,	0.0,
+					0.0,	-1.0*s.x,	c.x,	0.0,
+					0.0,	0.0,	0.0,	1.0
 				);
 
 				mat4 rotateY = mat4(
@@ -65,78 +82,88 @@ Last modified: 4/10/24
 				);
 
 				return rotateX * rotateY * rotateZ * pos;
-			}
-			
+			}		
+
 			vec4 MoveCamera(vec4 pos)
 			{
-				vec3 cw = cos(cameraRotation);
-				vec3 sw = sin(cameraRotation);
+				vec3 cw = cos(camerarotation);
+				vec3 sw = sin(camerarotation);
 				
 				mat4 translateView = mat4(
-					1.0, 0.0, 0.0, 0.0,
-					0.0, 1.0, 0.0, 0.0,
-					0.0, 0.0, -1.0, 0.0,
-					-1.0 * cameraLoc.x, -1.0 * cameraLoc.y, cameraLoc.z, 1.0);
-				
+							1.0,0.0,0.0,0.0,
+							0.0,1.0,0.0,0.0,
+							0.0,0.0,-1.0,0.0,
+							-1.0*cameraLoc.x,-1.0*cameraLoc.y,cameraLoc.z,1.0
+							);
+							
 				mat4 rotateYView = mat4(
-					cw.y, 0.0, -1.0 * sw.y, 0.0,
-					0.0, 1.0, 0.0, 0.0,
-					sw.y, 0.0, cw.y, 0.0,
-					0.0, 0.0, 0.0, 1.0);
-					
+							cw.y,0.0,-1.0*sw.y,0.0,
+							0.0,1.0,0.0,0.0,
+							sw.y,0.0,cw.y,0.0,
+							0.0,0.0,0.0,1.0
+							);
+										
 				mat4 rotateXView = mat4(
-					1.0, 0.0, 0.0, 0.0,
-					0.0, cw.x, sw.x, 0.0,
-					0.0, -1.0 * sw.x, cw.y, 0.0,
-					0.0, 0.0, 0.0, 1.0);
-					
-				mat4 rotateZView = mat4(
-					cw.z, sw.z, 0.0, 0.0,
-					-1.0 * sw.z, cw.z, 1.0, 0.0,
-					0.0, 0.0, 1.0, 0.0,
-					0.0, 0.0, 0.0, 1.0);
+							1.0,	0.0,		0.0,	0.0,
+							0.0,	cw.x,		sw.x,	0.0,
+							0.0,	-1.0*sw.x, 	cw.x,	0.0,
+							0.0,	0.0,		0.0,	1.0
+									);
 				
-				return rotateXView * rotateYView * rotateZView * translateView * pos;
+				mat4 rotateZView = mat4(
+							cw.z,		sw.z,		0.0,	0.0,
+							-1.0*sw.z, 	cw.z,		0.0,	0.0,
+							0.0,		0.0,		1.0,	0.0,
+							0.0,		0.0,		0.0,	1.0
+									);		
+				return rotateXView*rotateYView*rotateZView*translateView*pos;
 			}
 			
-			vec4 ApplyPosition(vec4 pos)
+			vec4 ApplyProjection(vec4 pos)
 			{
-				
+			
 				mat4 ComplexPerspective = mat4(
-					n/r, 0.0, 0.0, 0.0,
-					0.0, n/t, 0.0, 0.0,
-					0.0, 0.0, -1.0 * ((f+n)/(f-n)), -1.0,
-					0.0, 0.0, -2.0 * f*n/(f-n), 0.0);
-					
-				mat4 ComplexOrtho = mat4(
+					n/r, 0.0,0.0,0.0,
+					0.0, n/t,0.0,0.0,
+					0.0, 0.0, -1.0*(f+n)/(f-n), -1.0,
+					0.0, 0.0, -2.0*f*n/(f-n), 0.0
+					);
+											
+				mat4 ComplexOrtho = mat4(	
 					1.0/r, 0.0, 0.0, 0.0,
-					0.0, 1.0/t, 0.0, 0.0,
-					0.0, 0.0, 1.0/t, 0.0,
-					0.0, 0.0, 0.0, 1.0);
-					
-					
-				//return ComplexOrtho * pos;
-				return ComplexPerspective * pos;
-			}
+					0.0, 1.0/t, 0.0, 0.0,	
+					0.0, 0.0, 1.0, 0.0,
+					-1.0, 1.0, 0.0, 1.0	
+					);
+								
+				//Choose which projection you want here:  Perspective or Orthographic			
+				return ComplexPerspective*pos;
+				//does not work
+				//return ComplexOrtho*pos;
+			}					
+			
+			//End of Camera Move			
 			
 			vec4 LookAt(vec3 F, vec3 U, vec4 pos)
 			{
 				//precision mediump float;
 				vec3 R = cross(F,U);
-				mat4 LookAt = mat4(R.x,R.y,R.z,0.0,
-									U.x,U.y,U.z,0.0,
-									F.x,F.y,F.z,0.0,
-									0.0,0.0,0.0,1.0);
-			
+				mat4 LookAt = mat4(
+					R.x,R.y,R.z,0.0,
+					U.x,U.y,U.z,0.0,
+					F.x,F.y,F.z,0.0,
+					0.0,0.0,0.0,1.0
+				);
+						
 				return LookAt*pos;	
 			}
+			
 
 			void main()
 			{
-				gl_PointSize = 10.0;
 				fragColor = vert_color;
-				
-				gl_Position=ApplyPosition(MoveCamera(PositionObject(RotateObject(a_position))));
+				//gl_Position=PositionObject(RotateObject(ScaleObject(a_position)));
+				gl_Position=ApplyProjection(MoveCamera(PositionObject(RotateObject(ScaleObject(a_position)))));
 			}		
 		</SCRIPT>
 		<script id="2dFragmentShader" type="notjs">
@@ -208,7 +235,7 @@ Last modified: 4/10/24
 				this.up = [0,1,0];
 			}
 		
-			doRotations(RotAngles)
+			dorotations(RotAngles)
 			{
 				this.xRot = [
 							[1,0,0,0],
@@ -337,6 +364,8 @@ Last modified: 4/10/24
 			{
 				super();
 				this.isPlayer = true;
+				//this.isTrigger = true;
+				
 				this.collisionRadius = 0.05;
 				
 				this.coolDown = 0;
@@ -360,36 +389,36 @@ Last modified: 4/10/24
 				this.velocity = [0,0,0];
 				if("W" in m.Keys && m.Keys["W"])
 				{
-					this.transform.doRotations(this.rot);
+					this.transform.dorotations(this.rot);
 					for(let i =0; i <3; i ++)
 					{
-						this.velocity[i] = this.transform.forward[i]*.01
+						this.velocity[i] = this.transform.forward[i]*.02
 					}
 				}
 				if("S" in m.Keys && m.Keys["S"])
 				{
-					this.transform.doRotations(this.rot);
+					this.transform.dorotations(this.rot);
 					for(let i =0; i <3; i ++)
 					{
-						this.velocity[i] = this.transform.forward[i]*-.01
+						this.velocity[i] = this.transform.forward[i]*-.02
 					}
 				}
 				
 				// Up and down
 				if("Z" in m.Keys && m.Keys["Z"])
 				{
-					this.transform.doRotations(this.rot);
+					this.transform.dorotations(this.rot);
 					for(let i =0; i <3; i ++)
 					{
-						this.velocity[i] = this.transform.up[i]*-.01
+						this.velocity[i] = this.transform.up[i]*.02
 					}
 				}
 				if("X" in m.Keys && m.Keys["X"])
 				{
-					this.transform.doRotations(this.rot);
+					this.transform.dorotations(this.rot);
 					for(let i =0; i <3; i ++)
 					{
-						this.velocity[i] = this.transform.up[i]*.01
+						this.velocity[i] = this.transform.up[i]* -.02
 					}
 				}
 				
@@ -408,20 +437,25 @@ Last modified: 4/10/24
 					//bullet.velocity[1] = Math.sin(angle) * 0.01;
 					
 					/*var bullet = m.CreateObject(2, Bullet, [this.loc[0], this.loc[1], 0], [0,0,0]);
-					this.transform.doRotations(this.rot);
+					this.transform.dorotations(this.rot);
 					bullet.velocity[0] = this.transform.forward[0] * 0.01; // Adjusted for direction and speed
 					bullet.velocity[1] = this.transform.forward[1] * 0.01;
 					bullet.velocity[2] = this.transform.forward[2] * 0.01; // Ensure this uses the correct axis*/
 					
 					
-					this.transform.doRotations(this.rot);
-					var bulletStartPosition = [
-						this.loc[0] + this.transform.forward[0] * 0.6, // Offset the bullet start position to be in front of the camera
-						this.loc[1] + this.transform.forward[1] * 0.6,
-						this.loc[2] + this.transform.forward[2] * 0.6,
+					this.transform.dorotations(this.rot);
+					var bulletStartPos = [
+						this.loc[0] + this.transform.forward[0] * 0.5, // Offset the bullet start position to be in front of the camera
+						this.loc[1] + this.transform.forward[1] * 0.5,
+						this.loc[2] + this.transform.forward[2] * 0.5,
 					];
-
-					var bullet = m.CreateObject(2, Bullet, bulletStartPosition, [0,0,0]);
+					
+					var bullet = m.CreateObject(2, Bullet, bulletStartPos, [0,0,0]);
+					for(let i = 0; i < 3; i++)
+					{
+						bullet.rot[i] = this.rot[i];
+					}
+					
 					bullet.velocity[0] = this.transform.forward[0] * 0.01;
 					bullet.velocity[1] = this.transform.forward[1] * 0.01;
 					bullet.velocity[2] = this.transform.forward[2] * 0.01;
@@ -436,7 +470,7 @@ Last modified: 4/10/24
 				var camLoc = gl.getUniformLocation(program, 'cameraLoc');
 				gl.uniform3fv(camLoc, new Float32Array(this.loc));
 				
-				var worldLoc = gl.getUniformLocation(program, 'cameraRotation');
+				var worldLoc = gl.getUniformLocation(program, 'camerarotation');
 				gl.uniform3fv(worldLoc, new Float32Array(this.rot));
 
 			}
@@ -451,8 +485,11 @@ Last modified: 4/10/24
 				this.isAster = true;
 				this.isTrigger = true;
 				
-				this.randAxis = Math.floor((Math.random() * 2));
-				this.randSpeed = Math.random() * (0.05 - 0.01) + 0.01;
+				//this.randAxis = Math.floor((Math.random() * 2));
+				this.randSpeed1 = Math.random() * (0.05 - 0.01) + 0.01;
+				this.randSpeed2 = Math.random() * (0.05 - 0.01) + 0.01;
+				this.randSpeed3 = Math.random() * (0.05 - 0.01) + 0.01;
+				
 				
 				this.direction = 1;
 				this.startingX = this.loc[0];
@@ -503,12 +540,10 @@ Last modified: 4/10/24
 			{
 				if(this.health > 0) //If health is above 0
 				{
-					if(this.randAxis == 0)
-						this.angVelocity[0]= this.randSpeed;
-					else if(this.randAxis == 1)
-						this.angVelocity[1]= this.randSpeed;
-					else
-						this.angVelocity[2]= this.randSpeed;
+					
+					this.angVelocity[0]= this.randSpeed1;
+					this.angVelocity[1]= this.randSpeed2;
+					this.angVelocity[2]= this.randSpeed3;
 					
 					this.Move();
 				}
@@ -524,7 +559,7 @@ Last modified: 4/10/24
 				var tranLoc  = gl.getUniformLocation(program,'transform');
 				gl.uniform3fv(tranLoc,new Float32Array(this.loc));
 				
-				var thetaLoc = gl.getUniformLocation(program, "u_rotation");
+				var thetaLoc = gl.getUniformLocation(program, "rotation");
 				gl.uniform3fv(thetaLoc, new Float32Array(this.rot));
 			
 				gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
@@ -568,10 +603,6 @@ Last modified: 4/10/24
 					
 					this.health--;
 				}
-				else if(other.isPlayer)
-				{
-					
-				}
 			}
 		}
 		
@@ -614,8 +645,10 @@ Last modified: 4/10/24
 					this.coolDown++;
 				}
 				else
+				{
 					this.doDestroy = true;
 					m.DestroyObject(this.id);
+				}
 			}
 			
 			Render(program)
@@ -625,7 +658,7 @@ Last modified: 4/10/24
 					
 				var tranLoc  = gl.getUniformLocation(program,'transform');
 				gl.uniform3fv(tranLoc,new Float32Array(this.loc));
-				var thetaLoc = gl.getUniformLocation(program,'u_rotation');
+				var thetaLoc = gl.getUniformLocation(program,'rotation');
 				gl.uniform3fv(thetaLoc,new Float32Array(this.rot));
 				
 				var positionAttributeLocation = gl.getAttribLocation(program, "a_position");
@@ -677,7 +710,7 @@ Last modified: 4/10/24
 				
 				var camLoc = gl.getUniformLocation(this.program, 'cameraLoc');
 				gl.uniform3fv(camLoc, new Float32Array([0,0,0]));
-				var worldLoc = gl.getUniformLocation(this.program, 'cameraRotation');
+				var worldLoc = gl.getUniformLocation(this.program, 'camerarotation');
 				gl.uniform3fv(worldLoc, new Float32Array([0,0,0]));
 				
 				var tempLoc = gl.getUniformLocation(this.program,'n');
@@ -690,10 +723,9 @@ Last modified: 4/10/24
 				gl.uniform1f(tempLoc,.1 * 3/4);
 			
 				
-				this.Player = this.CreateObject(2,Camera,[0,0,0],[0,0,0]);
+				this.Player = this.CreateObject(1,Camera,[0,0,0],[0,0,0]);
 				
-				// Generate 200 asteroids
-				this.CreateObject(1,Asteroids,[0,0,1],[0,0,0]);
+				// Generate 300 asteroids
 				
 				for(let i = 0; i < 300; i++)
 				{
@@ -723,6 +755,10 @@ Last modified: 4/10/24
 
 			RenderAll()
 			{
+				gl.clearColor(0.0, 0.0, 0.0, 1.0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+				
+				
 				for(var i in this.Visual)
 				{
 					this.Visual[i].Render(this.program);
@@ -784,7 +820,10 @@ Last modified: 4/10/24
 				if (id in this.Solid)
 					delete this.Solid[id];
 				if (id in this.Trigger)
+				{
+					console.log("Deleting: " + this.Trigger[id].name);
 					delete this.Trigger[id];
+				}
 			}
 			
 			KeyDown(event)
