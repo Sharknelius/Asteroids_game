@@ -19,13 +19,10 @@ Last modified: 4/10/24
 
 			uniform vec3 transform;
 			uniform vec3 u_rotation;
-			uniform vec3 u_scale;
 			
 			// new uniforms
 			uniform vec3 cameraLoc;
 			uniform vec3 cameraRotation;
-			
-			uniform float overlay;
 			
 			uniform float n;
 			uniform float f;
@@ -39,22 +36,6 @@ Last modified: 4/10/24
 							0.0,0.0,1.0,0.0,
 							transform.x,transform.y,transform.z,1.0);
 				return translateM*pos;	
-			}
-			
-			vec4 ScaleObject(vec4 pos)
-			{
-				if(length(u_scale) != 0.0)
-				{
-				mat4 scaleM = mat4(
-							u_scale.x,0.0,0.0,0.0,
-							0.0,u_scale.y,0.0,0.0,
-							0.0,0.0,u_scale.z,0.0,
-							0.0,0.0,0.0,1.0
-							);
-				return scaleM * pos;
-				}
-				else
-					return pos;
 			}
 			
 			vec4 RotateObject (vec4 pos)
@@ -120,11 +101,6 @@ Last modified: 4/10/24
 			
 			vec4 ApplyPosition(vec4 pos)
 			{
-				mat4 SimpleOrtho = mat4(
-					1.0, 0.0, 0.0, 0.0,
-					0.0, 1.0, 0.0, 0.0,
-					0.0, 0.0, 1.0, 0.0,
-					0.0, 0.0, 0.0, 1.0);
 				
 				mat4 ComplexPerspective = mat4(
 					n/r, 0.0, 0.0, 0.0,
@@ -138,12 +114,6 @@ Last modified: 4/10/24
 					0.0, 0.0, 1.0/t, 0.0,
 					0.0, 0.0, 0.0, 1.0);
 					
-				/*mat4 SimpleOrtho = mat4(
-					1.0, 0.0, 0.0, 0.0,
-					0.0, 1.0, 0.0, 0.0,
-					0.0, 0.0, -1.0, -1.0,
-					0.0, 0.0, -2.0, 0.0);*/
-				// Use either complex
 					
 				//return ComplexOrtho * pos;
 				return ComplexPerspective * pos;
@@ -166,19 +136,7 @@ Last modified: 4/10/24
 				gl_PointSize = 10.0;
 				fragColor = vert_color;
 				
-				vec4 worldCord = PositionObject(RotateObject(a_position));
-				
-				if(overlay < 1.0)
-				{
-					vec4 cameraSpace = MoveCamera(worldCord);
-					gl_Position = ApplyPosition(cameraSpace);
-				}
-				else
-				{
-					gl_Position = a_position;
-					
-				//gl_Position = ApplyPosition(MoveCamera(PositionObject(RotateObject(a_position))));
-				}
+				gl_Position=ApplyPosition(MoveCamera(PositionObject(RotateObject(a_position))));
 			}		
 		</SCRIPT>
 		<script id="2dFragmentShader" type="notjs">
@@ -186,7 +144,6 @@ Last modified: 4/10/24
 			varying vec3 fragColor;
 			void main()
 			{
-				//gl_FragColor = vec4(0,0,1,1); //Between 0 and 1.
 				gl_FragColor = vec4(fragColor,1);
 			}
 		</script>
@@ -294,9 +251,13 @@ Last modified: 4/10/24
 			{
 				this.loc = [0, 0, 0];
 				this.rot = [0, 0, 0];
+				
 				this.isTrigger = false;
 				this.isPlayer = false;
-				this.isWall = false;
+				this.isAster = false;
+				this.doDestroy = false;
+				this.isBullet = false;
+				
 				this.collisionRadius = 0.1;
 				this.velocity = [0,0,0];
 				this.angVelocity = [0,0,0];
@@ -318,7 +279,7 @@ Last modified: 4/10/24
 				var clear = true;
 				for(var so in m.Solid) //for each
 				{
-					if(m.Solid[so] != this)
+					if(m.Solid[so] != this && !this.doDestroy && !m.Solid[so].doDestroy)
 					{
 						if(m.CheckCollision(tempP, this.collisionRadius, m.Solid[so].loc, m.Solid[so].collisionRadius))
 						{		
@@ -341,12 +302,12 @@ Last modified: 4/10/24
 					this.loc = tempP;
 				for(var so in m.Trigger)
 				{
-					if(m.Trigger[so] !=this)
+					if(m.Trigger[so] != this && !this.doDestroy && !m.Trigger[so].doDestroy)
 					{
 						if(m.CheckCollision(this.loc, this.collisionRadius, m.Trigger[so].loc, m.Trigger[so].collisionRadius))
 						{
-							this.onTriggerEnter(m.Trigger[so]);
 							m.Trigger[so].onTriggerEnter(this);
+							this.onTriggerEnter(m.Trigger[so]);
 						}
 					}
 				}
@@ -375,57 +336,60 @@ Last modified: 4/10/24
 			constructor()
 			{
 				super();
+				this.isPlayer = true;
+				this.collisionRadius = 0.05;
 				
 				this.coolDown = 0;
-				
-				this.collisionRadius = 0.5;
-				
-				this.buffer=gl.createBuffer();
-				gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-				
-				this.vertices = new Float32Array([
-				// Position        Color
-					-1.0, -1.0, -0.99,  0.5, 0.5, 0.5, // red
-
-					1.0, -1.0, -0.99,  0.5, 0.5, 0.5, // green
-
-					0.0, -0.8, -0.99,  0.5, 0.5, 0.5, // blue
-
-				]); 
-					
-				gl.bufferData(gl.ARRAY_BUFFER, this.vertices, gl.STATIC_DRAW);
 			}
 			Update()
 			{
-				this.velocity = [0,0,0];
-				this.angVelocity = [0,0,0];
+				//this.velocity = [0,0,0];
+				//this.angVelocity = [0,0,0];
 				
 				if("A" in m.Keys && m.Keys["A"])
 				{
-					this.angVelocity[1] -=.01;
-					//this.rot[1] -=.01;
+					//this.angVelocity[1] -=.01;
+					this.rot[1] -=.01;
 				}
-				if("D" in m.Keys && m.Keys["D"])
+				if("D" in m.Keys && m.Keys["D"]) 
 				{
-					this.angVelocity[1] +=.01;
-					//this.rot[1] +=.01;
+					//this.angVelocity[1] +=.01;
+					this.rot[1] +=.01;
 				}
+				
 				this.velocity = [0,0,0];
 				if("W" in m.Keys && m.Keys["W"])
 				{
-		
-					this.transform.doRotations(this.rot)
+					this.transform.doRotations(this.rot);
 					for(let i =0; i <3; i ++)
 					{
-						this.velocity[i] = this.transform.forward[i]*.1
+						this.velocity[i] = this.transform.forward[i]*.01
 					}
 				}
 				if("S" in m.Keys && m.Keys["S"])
 				{
-					this.transform.doRotations(this.rot)
+					this.transform.doRotations(this.rot);
 					for(let i =0; i <3; i ++)
 					{
-						this.velocity[i] = this.transform.forward[i]*-.1
+						this.velocity[i] = this.transform.forward[i]*-.01
+					}
+				}
+				
+				// Up and down
+				if("Z" in m.Keys && m.Keys["Z"])
+				{
+					this.transform.doRotations(this.rot);
+					for(let i =0; i <3; i ++)
+					{
+						this.velocity[i] = this.transform.up[i]*-.01
+					}
+				}
+				if("X" in m.Keys && m.Keys["X"])
+				{
+					this.transform.doRotations(this.rot);
+					for(let i =0; i <3; i ++)
+					{
+						this.velocity[i] = this.transform.up[i]*.01
 					}
 				}
 				
@@ -437,11 +401,30 @@ Last modified: 4/10/24
 				
 				if (m.Keys[" "] && this.coolDown == 0) 
 				{
-					var angle = this.rot[2];
+					//var angle = this.rot[2];
 					
-					var bullet = m.CreateObject(2, Bullet, [this.loc[0], this.loc[1], 0], [0,0,0]);
-					bullet.velocity[0] = Math.cos(angle) * 0.01;
-					bullet.velocity[1] = Math.sin(angle) * 0.01;
+					//var bullet = m.CreateObject(2, Bullet, [this.loc[0], this.loc[1], 0], [0,0,0]);
+					//bullet.velocity[0] = Math.cos(angle) * 0.01;
+					//bullet.velocity[1] = Math.sin(angle) * 0.01;
+					
+					/*var bullet = m.CreateObject(2, Bullet, [this.loc[0], this.loc[1], 0], [0,0,0]);
+					this.transform.doRotations(this.rot);
+					bullet.velocity[0] = this.transform.forward[0] * 0.01; // Adjusted for direction and speed
+					bullet.velocity[1] = this.transform.forward[1] * 0.01;
+					bullet.velocity[2] = this.transform.forward[2] * 0.01; // Ensure this uses the correct axis*/
+					
+					
+					this.transform.doRotations(this.rot);
+					var bulletStartPosition = [
+						this.loc[0] + this.transform.forward[0] * 0.6, // Offset the bullet start position to be in front of the camera
+						this.loc[1] + this.transform.forward[1] * 0.6,
+						this.loc[2] + this.transform.forward[2] * 0.6,
+					];
+
+					var bullet = m.CreateObject(2, Bullet, bulletStartPosition, [0,0,0]);
+					bullet.velocity[0] = this.transform.forward[0] * 0.01;
+					bullet.velocity[1] = this.transform.forward[1] * 0.01;
+					bullet.velocity[2] = this.transform.forward[2] * 0.01;
 					
 					this.coolDown = 30;
 				}
@@ -449,91 +432,14 @@ Last modified: 4/10/24
 			
 			Render(program)
 			{
-				var tempLoc = gl.getUniformLocation(program, 'overlay');
-				gl.uniform1f(tempLoc, 5.0);
 				
 				var camLoc = gl.getUniformLocation(program, 'cameraLoc');
 				gl.uniform3fv(camLoc, new Float32Array(this.loc));
 				
 				var worldLoc = gl.getUniformLocation(program, 'cameraRotation');
 				gl.uniform3fv(worldLoc, new Float32Array(this.rot));
-				
-				
-
-				
-				gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-		
-				var positionAttributeLocation = gl.getAttribLocation(program, "a_position");
-				var size = 3;          
-				var type = gl.FLOAT;   
-				var normalize = false; 
-				var stride = 6*Float32Array.BYTES_PER_ELEMENT;	
-				var offset = 0;      
-				gl.enableVertexAttribArray(positionAttributeLocation);
-				gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
-		
-				var colorAttributeLocation = gl.getAttribLocation(program,"vert_color");
-
-				size = 3;
-				type = gl.FLOAT;
-				normalize = false;
-				stride = 6 * Float32Array.BYTES_PER_ELEMENT;	
-				offset = 3 * Float32Array.BYTES_PER_ELEMENT;
-				gl.enableVertexAttribArray(colorAttributeLocation);
-				gl.vertexAttribPointer(colorAttributeLocation, size, type, normalize, stride, offset);
-		
-		
-				var primitiveType = gl.TRIANGLES;
-				offset = 0;
-				var count = 3;
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibuffer);
-    
-				gl.drawArrays(primitiveType, offset, count);
-				tempLoc = gl.getUniformLocation(program, 'overlay');
-				gl.uniform1f(tempLoc, 0.0);
 
 			}
-		}
-		
-		class coinObject extends GameObject
-		{
-			constructor()
-			{
-			
-			}
-			
-			Render(program)
-			{
-				var tranLoc  = gl.getUniformLocation(program,'transform');
-				gl.uniform3fv(tranLoc,new Float32Array(this.loc));
-				var thetaLoc = gl.getUniformLocation(program,'u_rotation');
-				gl.uniform3fv(thetaLoc,new Float32Array(this.rot));
-			
-				var positionAttributeLocation = gl.getAttribLocation(program, "a_position");
-				var colorAttributeLocation = gl.getAttribLocation(program, "vert_color");
-        
-				gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-				gl.enableVertexAttribArray(positionAttributeLocation);
-				var size = 3;          
-				var type = gl.FLOAT;   
-				var normalize = false; 
-				var stride = 6 * Float32Array.BYTES_PER_ELEMENT;  
-				var offset = 0;        
-				gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
-        
-				gl.enableVertexAttribArray(colorAttributeLocation);
-				offset = 3 * Float32Array.BYTES_PER_ELEMENT; 
-				gl.vertexAttribPointer(colorAttributeLocation, size, type, normalize, stride, offset);
-
-				gl.drawArrays(this.primitiveType, 0, this.vertCount);
-			}
-			
-			Update()
-			{ 	//rotate around y access
-				this.rot[1] += 0.01;
-			}
-			
-		
 		}
 
 		class Asteroids extends GameObject
@@ -544,11 +450,17 @@ Last modified: 4/10/24
 				
 				this.isAster = true;
 				this.isTrigger = true;
+				
+				this.randAxis = Math.floor((Math.random() * 2));
+				this.randSpeed = Math.random() * (0.05 - 0.01) + 0.01;
+				
 				this.direction = 1;
 				this.startingX = this.loc[0];
 				
+				this.health = 3;
+				
 				this.primitiveType = gl.TRIANGLES;
-				this.collisionRadius = 0.06;
+				this.collisionRadius = 0.1;
 				this.buffer=gl.createBuffer();
 				gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
 				
@@ -589,11 +501,22 @@ Last modified: 4/10/24
 			
 			Update()
 			{
-				this.angVelocity[0]=.01
-				//this.velocity[0] =.0001;
-				//this.velocity[1] =.0002;
-
-				this.Move();
+				if(this.health > 0) //If health is above 0
+				{
+					if(this.randAxis == 0)
+						this.angVelocity[0]= this.randSpeed;
+					else if(this.randAxis == 1)
+						this.angVelocity[1]= this.randSpeed;
+					else
+						this.angVelocity[2]= this.randSpeed;
+					
+					this.Move();
+				}
+				else
+				{
+					this.doDestroy = true;
+					m.DestroyObject(this.id);
+				}
 			}
 			
 			Render(program)
@@ -636,7 +559,19 @@ Last modified: 4/10/24
 			
 			onTriggerEnter(other)
 			{
-
+				// Check for asteroid
+				if (other.isBullet) 
+				{
+					console.log("Asteroid hit");
+					other.doDestroy = true;
+					m.DestroyObject(other.id);
+					
+					this.health--;
+				}
+				else if(other.isPlayer)
+				{
+					
+				}
 			}
 		}
 		
@@ -645,13 +580,16 @@ Last modified: 4/10/24
 			constructor()
 			{
 				super();
+				console.log("bullet shot");
 				this.velocity = [0.03,0.03,0.3];
+				this.isBullet = true;
 				this.isTrigger = true;
 				this.primitiveType = gl.TRIANGLES;
+				this.coolDown = 0;
 				
 				this.buffer = gl.createBuffer();
 				gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-				this.collisionRadius = 0.02;
+				this.collisionRadius = 0.03;
 				
 				this.vertices = new Float32Array([
 					// First Triangle
@@ -670,11 +608,14 @@ Last modified: 4/10/24
 			
 			Update()
 			{
-				/*for (var i = 0; i < 3; i++) 
+				if(this.coolDown < 180)
 				{
-					this.loc[i] += this.velocity[i];
-				}*/
-				this.Move();
+					this.Move();
+					this.coolDown++;
+				}
+				else
+					this.doDestroy = true;
+					m.DestroyObject(this.id);
 			}
 			
 			Render(program)
@@ -714,12 +655,7 @@ Last modified: 4/10/24
 			
 			onTriggerEnter(other)
 			{
-				// Check for asteroid
-				if (other.isAster) 
-				{
-					console.log("Asteroid hit");
-					m.DestroyObject(other.id);
-				}
+
 			}
 		}
 		</script>
@@ -751,12 +687,22 @@ Last modified: 4/10/24
 				tempLoc = gl.getUniformLocation(this.program,'r');
 				gl.uniform1f(tempLoc,.1);
 				tempLoc = gl.getUniformLocation(this.program,'t');
-				gl.uniform1f(tempLoc,.1);
+				gl.uniform1f(tempLoc,.1 * 3/4);
 			
 				
 				this.Player = this.CreateObject(2,Camera,[0,0,0],[0,0,0]);
-				this.CreateObject(2,Asteroids,[0,0,1],[0,0,0]);
 				
+				// Generate 200 asteroids
+				this.CreateObject(1,Asteroids,[0,0,1],[0,0,0]);
+				
+				for(let i = 0; i < 300; i++)
+				{
+					let posX = Math.floor((Math.random() * 101) - 50);
+					let posY = Math.floor((Math.random() * 21) - 10);
+					let posZ = Math.floor((Math.random() * 101) - 50);
+					
+					this.CreateObject(1,Asteroids,[posX,posY,posZ],[0,0,0]);
+				}
 			}
 			
 			UpdateAll()
@@ -793,7 +739,7 @@ Last modified: 4/10/24
 			
 			CheckCollision(loc1,rad1,loc2, rad2)
 			{
-				var distance = Math.sqrt((loc2[0] - loc1[0]) ** 2 + (loc2[1] - loc1[1]) ** 2);
+				var distance = Math.sqrt((loc2[0] - loc1[0]) ** 2 + (loc2[1] - loc1[1]) ** 2 + (loc2[2] - loc1[2]) ** 2);
 				return distance < (rad1 + rad2);
 			}
 			
@@ -873,18 +819,6 @@ Last modified: 4/10/24
 				m.UpdateAll();
 				m.RenderAll();
 				requestAnimationFrame(main.MainLoop);
-			}
-			
-			checkKey(key)
-			{
-				if( (key in this.Keys)&& this.Keys[key])
-				{
-					return true
-				}
-				else
-				{
-					return false
-				}
 			}
 		}	
 		</script>
